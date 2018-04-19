@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>box2d</title>
+    <style>
+        .container{
+            margin:0 auto;
+            border:solid 1px #000;
+            overflow: hidden;
+            background: #69f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container"></div>
+    <script src="../../lib/hilo-standalone.js"></script>
+    <script src="lib/Box2d.js"></script>
+    <script src="lib/short.js"></script>
+    <script src="js/Resource.js"></script>
+    <script src="js/world.js"></script>
+    <script src="js/stage.js"></script>
+    <script src="js/shootLine.js"></script>
+    <script src="js/resetBird.js"></script>
+    <script src="js/collision.js"></script>
+    <script src="js/mouse.js"></script>
+    <script>
+        var MAP_SCALE = 19;
+        document.ontouchmove = function(e){e.preventDefault();}
+
+        world.createWorld();
+
+        var state = "ready";
+        stage.onUpdate = function(dt){
+            world.updateWorld(dt);
+            switch(state){
+                case "shooting":
+                    if(world.isSleeping(currentBird.body)|| currentBird.x > 2000){
+                        state = "ready";
+                        nextBird();
+                    }
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        var currentBirdIndex = 0;
+        var currentBird;
+        var preBird;
+
+        function setNextBird(){
+            if(currentBird){
+                preBird = currentBird;
+                currentBird.off(Hilo.event.POINTER_START);
+            }
+            currentBirdIndex ++;
+            currentBird = window["_bird_" + currentBirdIndex];
+
+            if(currentBird){
+                currentBird.pointerEnabled = true;
+                currentBird.isBird = true;
+                currentBird.x = 30;
+                currentBird.y = handY;
+                currentBird.pointerEnabled = true;
+                currentBird.on(Hilo.event.POINTER_START, function(e){
+                    currentBird.mousedown = true;
+                    currentBird.mouse = {
+                        x:currentBird.x - e.stageX/scene.scaleX,
+                        y:currentBird.y - e.stageY/scene.scaleY
+                    }
+                });
+            }
+        }
+
+        function init(){
+            var level = location.search.match(/l=([\d]+-[\d]+)/);
+            level = (level && level.length===2)?level[1]:"1-1";
+            var levelData = Resource.get("Level" + level + ".json");
+            for(var i in levelData.world){
+                var d = levelData.world[i];
+                if(!d.id){
+                    console.log("no id:" + i);
+                    continue;
+                }
+                var name = d.id.toLowerCase();
+
+                window["_"+i] = createObject(d.id, {
+                    x:d.x*MAP_SCALE,
+                    y:d.y*MAP_SCALE + gameHeight,
+                    angle:d.angle
+                }, scene);
+            }
+
+            setNextBird()
+
+            var cameraData = levelData.camera[0];
+            scene.scaleX = scene.scaleY = miniScale;//(cameraData.right - cameraData.left)*10/gameWdith
+
+            initFloor();
+            initShootLine();
+            initMouse();
+            initCollision();
+
+            var ground = new Hilo.View({
+                background:"#000",
+                y:gameHeight,
+                x:-2000,
+                width:10000 + gameWdith,
+                height:1000
+            }).addTo(scene);
+        }
+
+        function createObject(id, transform, container){
+            var view = Resource.getBmp(id + "_1");
+            view.id = id;
+            view.x = transform.x;
+            view.y = transform.y;
+            view.pointerEnabled = false;
+
+            if(id.indexOf("PIG") > -1){
+                view.isPig = true;
+            }
+
+            var objData = Resource.get("Objects.json")[id];
+            var shapeData = Resource.get("Shapes.json")[objData.shape];
+            var materialData = Resource.get("Materials.json")[objData.material];
+
+            view.isStatic = materialData.bodyType === "STATIC";
+            view.maxHealth = objData.maxHealth;
+            view.defense = materialData.defense;
+            view.particleType = materialData.particleType;
+
+            if(shapeData.type === "RECTANGLE"){
+                world.createRect(view, transform, materialData, shapeData);
+            }
+            else if(shapeData.type === "CIRCLE"){
+                world.createCircle(view, transform, materialData, shapeData);
+            }
+            else if(shapeData.type === "POLYGON"){
+                world.createPolygon(view, transform, materialData, shapeData);
+            }
+
+            container && container.addChild(view);
+            return view;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>chipmunk</title>
+    <style>
+        .container{
+            margin:0 auto;
+            border:solid 1px #000;
+            overflow: hidden;
+            background: #69f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container"></div>
+    <script src="../../lib/hilo-standalone.js"></script>
+    <script src="lib/cp.js"></script>
+    <script src="lib/cp.extra.js"></script>
+    <script src="js/Resource.js"></script>
+    <script src="js/world.js"></script>
+    <script src="js/stage.js"></script>
+    <script src="js/shootLine.js"></script>
+    <script src="js/resetBird.js"></script>
+    <script src="js/collision.js"></script>
+    <script src="js/mouse.js"></script>
+    <script>
+        document.ontouchmove = function(e){e.preventDefault();}
+
+        world.createWorld();
+
+        var state = "ready";
+        stage.onUpdate = function(dt){
+            world.updateWorld(dt);
+            switch(state){
+                case "shooting":
+                    var bird = _bird_1;
+                    if(world.isSleeping(bird.body)|| bird.x > 2000){
+                        state = "ready";
+                        resetBird(bird);
+                    }
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        function init(){
+            var level = location.search.match(/l=([\d]+-[\d]+)/);
+            level = (level && level.length===2)?level[1]:"1-1";
+            var levelData = Resource.get("Level" + level + ".json");
+            for(var i in levelData.world){
+                var d = levelData.world[i];
+                var name = d.id.toLowerCase();
+
+                window["_"+i] = createObject(d.id, {
+                    x:d.x*20,
+                    y:d.y*20 + gameHeight,
+                    angle:d.angle
+                }, scene);
+
+                _bird_1.physics = false;
+                _bird_1.isBird = true;
+                _bird_1.x = 30;
+                _bird_1.y = handY;
+                _bird_1.pointerEnabled = true;
+            }
+
+            var cameraData = levelData.camera[0];
+            scene.scaleX = scene.scaleY = miniScale;//(cameraData.right - cameraData.left)*10/gameWdith
+
+            initFloor();
+            initShootLine();
+            initMouse();
+            initCollision();
+
+            var ground = new Hilo.View({
+                background:"#000",
+                y:gameHeight,
+                x:-2000,
+                width:10000 + gameWdith,
+                height:1000
+            }).addTo(scene);
+        }
+
+        function createObject(id, transform, container){
+            var view = Resource.getBmp(id + "_1");
+            view.pointerEnabled = false;
+
+            if(id.indexOf("PIG") > -1){
+                view.isPig = true;
+            }
+
+            var objData = Resource.get("Objects.json")[id];
+            var shapeData = Resource.get("Shapes.json")[objData.shape];
+            var materialData = Resource.get("Materials.json")[objData.material];
+
+            view.isStatic = materialData.bodyType === "STATIC";
+            view.maxHealth = objData.maxHealth;
+            view.defense = materialData.defense;
+            view.particleType = materialData.particleType;
+
+            if(shapeData.type === "RECTANGLE"){
+                world.createRect(view, transform, materialData, shapeData);
+            }
+            else if(shapeData.type === "CIRCLE"){
+                world.createCircle(view, transform, materialData, shapeData);
+            }
+
+            container && container.addChild(view);
+            return view;
+        }
+    </script>
+</body>
+</html>
